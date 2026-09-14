@@ -1,0 +1,6 @@
+# USBMON_IFACE may be "auto" or an explicit interface such as usbmon3.
+USBMON_IFACE=auto
+CAN_INTERFACE=can3
+CAPTURE_DIR=/run/usbcan
+FILE_SIZE_MB=64
+FILE_COUNT=8

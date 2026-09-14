@@ -1,0 +1,17 @@
+[Unit]
+Description=RoboPi HPM UART log capture
+Documentation=file:/usr/share/doc/robopi-analyze/usbcan-dump.md
+PartOf=usbcan-capture.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/hpm-log-capture
+ExecStart=/opt/roboparty/bin/hpm-log-capture
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hpm-uart
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+*.deb
+*.build
+*.buildinfo
+*.changes
+*.dsc
+*.tar.*
+*.tar.gz
+*.zip
+*.sha256
+*.pyc
+__pycache__/
+*.log
+*~
+.*.swp
+.cache/
+build/
+cmake-build-*/
+
+# Debian helper staging and generated metadata.
+debian/.debhelper/
+debian/robopi-analyze/
+debian/debhelper-build-stamp
+debian/files
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars
+
+# Large sample captures and generated analysis reports.
+/tests/captures/**/*.pcap
+/tests/captures/**/*.pcapng
+/tests/results/
+/tests/sessions/
+/tests/output/

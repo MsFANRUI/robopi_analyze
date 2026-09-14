@@ -1,0 +1,52 @@
+name: Build RoboPi Analyze Deb Package
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Tag vs changelog version check
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+        CHANGELOG_VERSION=$(head -1 debian/changelog | grep -oP '\((.*?)\)' | tr -d '()' | cut -d'-' -f1)
+
+        echo "Tag version:       $TAG_VERSION"
+        echo "Changelog version: $CHANGELOG_VERSION"
+
+        if [ "$TAG_VERSION" != "$CHANGELOG_VERSION" ]; then
+          echo "::error::Version mismatch! tag=v$TAG_VERSION, changelog=$CHANGELOG_VERSION"
+          exit 1
+        fi
+
+    - name: Install build dependencies
+      run: sudo apt-get update && sudo apt-get install -y build-essential debhelper zip kmod can-utils tcpdump usbutils python3-serial python3-usb python3-crcmod python3-hid
+
+    - name: Build Debian package
+      run: |
+        dpkg-buildpackage -us -uc -b
+
+        DEBIAN_VERSION=$(dpkg-parsechangelog -S Version)
+        VERSION=${DEBIAN_VERSION%%-*}
+        mv "../robopi-analyze_${DEBIAN_VERSION}_all.deb" .
+
+        echo "PKG_VERSION=$VERSION" >> "$GITHUB_ENV"
+        ls -l robopi-analyze_*_all.deb
+
+    - name: Upload Debian package
+      uses: actions/upload-artifact@v4
+      with:
+        name: robopi-analyze-v${{ env.PKG_VERSION }}-all
+        path: "robopi-analyze_*_all.deb"
+
+    - name: Upload to GitHub Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: "robopi-analyze_*_all.deb"

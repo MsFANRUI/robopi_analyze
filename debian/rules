@@ -1,0 +1,67 @@
+#!/usr/bin/make -f
+# SPDX-FileCopyrightText: 2026 wentywenty <2321901849@qq.com>
+# SPDX-License-Identifier: GPL-3.0
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	install -d $(CURDIR)/debian/robopi-analyze/opt/roboparty/bin \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/robopi-analyze/dimensions \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/robopi-analyze/analysis \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/firmware \
+		$(CURDIR)/debian/robopi-analyze/etc/default \
+		$(CURDIR)/debian/robopi-analyze/lib/systemd/system
+	install -D -m 0755 capture/capture_seven_dimensions.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-capture
+	install -D -m 0755 capture/capture_usbcan_ring.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/usbcan-capture
+	install -D -m 0755 capture/capture_hpm_uart.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpm-log-capture
+	install -m 0755 dimensions/* \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/robopi-analyze/dimensions/
+	install -m 0755 analysis/*.py \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/robopi-analyze/analysis/
+	install -D -m 0755 analysis/analyze_seven_dimensions.py \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-analyze
+	install -D -m 0755 dimensions/06_can_asc.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-can-capture
+	install -D -m 0755 bin/export_seven_dimensions.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-export
+	install -D -m 0755 bin/save_usbcan_snapshot.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/usbcan-debug-snapshot
+	install -D -m 0755 bin/restart_can_interfaces.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-can-restart
+	install -D -m 0755 bin/show_communication_dashboard.py \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-comm-status
+	install -D -m 0755 bin/analyze_ethercan_pcap.py \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/analyze-ethercan-pcap
+	install -D -m 0755 bin/flash_hpm.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/flash_hpm.sh
+	install -D -m 0755 bin/hpmtool.py \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpmtool
+	install -m 0644 etc/firmware/* \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/firmware/
+	install -m 0644 etc/default/* \
+		$(CURDIR)/debian/robopi-analyze/etc/default/
+	install -m 0644 etc/systemd/system/* \
+		$(CURDIR)/debian/robopi-analyze/lib/systemd/system/
+	install -D -m 0644 doc/usbcan-dump.md \
+		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/usbcan-dump.md
+	install -D -m 0644 doc/seven-dimension-logging.md \
+		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/seven-dimension-logging.md
+	install -D -m 0644 doc/FILES.md \
+		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/log-files.md
+	install -d $(CURDIR)/debian/robopi-analyze/usr/bin
+	ln -sf /opt/roboparty/bin/robopi-sixd-capture $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-capture
+	ln -sf /opt/roboparty/bin/robopi-sixd-analyze $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-analyze
+	ln -sf /opt/roboparty/bin/robopi-sixd-export $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-export
+	ln -sf /opt/roboparty/bin/robopi-comm-status $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-comm-status
+	ln -sf /opt/roboparty/bin/usbcan-capture $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-capture
+	ln -sf /opt/roboparty/bin/usbcan-debug-snapshot $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-debug-snapshot
+	ln -sf /opt/roboparty/bin/hpm-log-capture $(CURDIR)/debian/robopi-analyze/usr/bin/hpm-log-capture
+	ln -sf /opt/roboparty/bin/robopi-can-capture $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-can-capture
+	ln -sf /opt/roboparty/bin/robopi-can-restart $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-can-restart
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start

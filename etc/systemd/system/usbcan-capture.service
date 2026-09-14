@@ -1,0 +1,26 @@
+[Unit]
+Description=RoboPi USB-CAN usbmon flight recorder
+Documentation=file:/usr/share/doc/robopi-analyze/usbcan-dump.md
+After=local-fs.target systemd-modules-load.service
+Wants=hpm-log-capture.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/usbcan-capture
+RuntimeDirectory=usbcan
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+ExecStart=/opt/roboparty/bin/usbcan-capture
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+Nice=15
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
+CPUAffinity=0 1
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

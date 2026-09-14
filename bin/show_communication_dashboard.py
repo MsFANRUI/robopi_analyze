@@ -15,8 +15,9 @@ import time
 
 
 SERVICES = (
-    ("USB capture", "usbcan-capture.service"),
+    ("Seven capture", "usbcan-capture.service"),
     ("HPM UART", "hpm-log-capture.service"),
+    ("BMS service", "bms.service"),
 )
 
 DIMENSIONS = (
@@ -101,20 +102,32 @@ def hpm_log(lines):
     return output.splitlines()[-lines:] if output else ["(no HPM UART log available)"]
 
 
+def screen_session_active(session):
+    _, status = run(["screen", "-S", session, "-Q", "select", "."])
+    return status == 0
+
+
 def service_text(states):
     return "  ".join(f"{label}: {state.upper()}" for label, state in states)
 
 
-def dimension_states(args, can):
+def dimension_states(args, can_states, services):
     states = []
-    sessions = sorted(glob.glob("/var/log/robopi/sixd-*"), key=os.path.getmtime, reverse=True)
+    service_map = dict(services)
+    sessions = sorted(glob.glob("/var/log/robopi/seven-*"), key=os.path.getmtime, reverse=True)
     latest = sessions[0] if sessions else None
     for label, pattern in DIMENSIONS:
         if label == "CAN details":
-            states.append((label, "LIVE" if can is not None else "MISSING"))
+            states.append((label, "LIVE" if any(can_states.values()) else "MISSING"))
         elif label == "USB pcap":
             count, _, _ = capture_status(args.capture_dir)
             states.append((label, "READY" if count else "EMPTY"))
+        elif label == "BMS service" and service_map.get("BMS service") == "active":
+            states.append((label, "LIVE"))
+        elif label == "HPM ttyS4" and service_map.get("HPM UART") == "active":
+            states.append((label, "LIVE"))
+        elif label == "inference screen" and screen_session_active(args.screen_session):
+            states.append((label, "LIVE"))
         elif latest and pattern:
             path = os.path.join(latest, pattern)
             states.append((label, "READY" if os.path.exists(path) and os.path.getsize(path) else "EMPTY"))
@@ -132,20 +145,24 @@ def render(args, current, previous, elapsed):
     print(line)
     print(f" RoboPi Communication Status  {now}"[:width])
     print(line)
-    print(service_text(service_states())[:width])
-    print(" | ".join(f"{label}: {state}" for label, state in dimension_states(args, current))[:width])
+    services = service_states()
+    print(service_text(services)[:width])
+    print(" | ".join(f"{label}: {state}" for label, state in dimension_states(args, current, services))[:width])
     print("-" * width)
 
-    if current is None:
-        print(f"CAN {args.can}: unavailable")
-    else:
-        rx = current["rx"]
-        tx = current["tx"]
-        previous_rx = previous["rx"] if previous else None
-        previous_tx = previous["tx"] if previous else None
+    for interface in args.can:
+        current_can = current[interface]
+        previous_can = previous.get(interface) if previous else None
+        if current_can is None:
+            print(f"CAN {interface}: unavailable")
+            continue
+        rx = current_can["rx"]
+        tx = current_can["tx"]
+        previous_rx = previous_can["rx"] if previous_can else None
+        previous_tx = previous_can["tx"] if previous_can else None
         print(
-            f"CAN {args.can}: link={current['operstate']}  "
-            f"controller={current['can_state']}"
+            f"CAN {interface}: link={current_can['operstate']}  "
+            f"controller={current_can['can_state']}"
         )
         print(
             f"RX packets={rx.get('packets', 0):>12} ({rate(rx, previous_rx, elapsed, 'packets'):>10})  "
@@ -174,7 +191,14 @@ def render(args, current, previous, elapsed):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--can", default="can3", help="SocketCAN interface (default: can3)")
+    parser.add_argument(
+        "--can", nargs="+", default=["can0", "can1", "can2", "can3"],
+        help="SocketCAN interfaces (default: can0 can1 can2 can3)",
+    )
+    parser.add_argument(
+        "--screen-session", default="inference_session",
+        help="screen session for inference output (default: inference_session)",
+    )
     parser.add_argument("--capture-dir", default="/run/usbcan", help="ring capture directory")
     parser.add_argument("--interval", type=float, default=1.0, help="refresh interval in seconds")
     parser.add_argument("--log-lines", type=int, default=6, help="recent HPM journal lines")
@@ -192,7 +216,7 @@ def main():
     try:
         while True:
             current_time = time.monotonic()
-            current = can_status(args.can)
+            current = {interface: can_status(interface) for interface in args.can}
             if not args.once:
                 print("\033[2J\033[H", end="")
             render(args, current, previous, current_time - previous_time)

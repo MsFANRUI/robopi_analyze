@@ -1,7 +1,7 @@
 [Unit]
-Description=RoboPi USB-CAN usbmon flight recorder
-Documentation=file:/usr/share/doc/robopi-analyze/usbcan-dump.md
-After=local-fs.target systemd-modules-load.service
+Description=RoboPi seven-dimensional communication recorder
+Documentation=file:/usr/share/doc/robopi-analyze/README.md
+After=local-fs.target systemd-modules-load.service hpm-log-capture.service
 Wants=hpm-log-capture.service
 StartLimitIntervalSec=0
 
@@ -11,7 +11,7 @@ EnvironmentFile=/etc/default/usbcan-capture
 RuntimeDirectory=usbcan
 RuntimeDirectoryMode=0750
 RuntimeDirectoryPreserve=yes
-ExecStart=/opt/roboparty/bin/usbcan-capture
+ExecStart=/opt/roboparty/bin/robopi-seven-capture
 Restart=on-failure
 RestartSec=5
 KillSignal=SIGINT

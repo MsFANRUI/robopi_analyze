@@ -17,7 +17,7 @@ command -v zip >/dev/null 2>&1 || { echo "Missing zip; install zip" >&2; exit 1;
 command -v sha256sum >/dev/null 2>&1 || { echo "Missing sha256sum" >&2; exit 1; }
 analyzer=$(dirname "$0")/analyze_seven_dimensions.py
 [[ -f $analyzer ]] || analyzer=$(dirname "$0")/../analysis/analyze_seven_dimensions.py
-[[ -f $analyzer ]] || analyzer=/opt/roboparty/bin/robopi-sixd-analyze
+[[ -f $analyzer ]] || analyzer=/opt/roboparty/bin/robopi-seven-analyze
 [[ -f $analyzer ]] || { echo "Analyzer not found: $analyzer" >&2; exit 1; }
 python3 "$analyzer" "$session"
 stage=$(mktemp -d)

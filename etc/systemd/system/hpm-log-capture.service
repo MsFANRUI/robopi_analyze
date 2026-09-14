@@ -1,7 +1,6 @@
 [Unit]
 Description=RoboPi HPM UART log capture
-Documentation=file:/usr/share/doc/robopi-analyze/usbcan-dump.md
-PartOf=usbcan-capture.service
+Documentation=file:/usr/share/doc/robopi-analyze/README.md
 
 [Service]
 Type=simple

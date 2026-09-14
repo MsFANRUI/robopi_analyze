@@ -13,7 +13,7 @@ override_dh_auto_install:
 		$(CURDIR)/debian/robopi-analyze/etc/default \
 		$(CURDIR)/debian/robopi-analyze/lib/systemd/system
 	install -D -m 0755 capture/capture_seven_dimensions.sh \
-		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-capture
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-seven-capture
 	install -D -m 0755 capture/capture_usbcan_ring.sh \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/usbcan-capture
 	install -D -m 0755 capture/capture_hpm_uart.sh \
@@ -23,11 +23,11 @@ override_dh_auto_install:
 	install -m 0755 analysis/*.py \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/robopi-analyze/analysis/
 	install -D -m 0755 analysis/analyze_seven_dimensions.py \
-		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-analyze
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-seven-analyze
 	install -D -m 0755 dimensions/06_can_asc.sh \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-can-capture
 	install -D -m 0755 bin/export_seven_dimensions.sh \
-		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-sixd-export
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-seven-export
 	install -D -m 0755 bin/save_usbcan_snapshot.sh \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/usbcan-debug-snapshot
 	install -D -m 0755 bin/restart_can_interfaces.sh \
@@ -46,16 +46,10 @@ override_dh_auto_install:
 		$(CURDIR)/debian/robopi-analyze/etc/default/
 	install -m 0644 etc/systemd/system/* \
 		$(CURDIR)/debian/robopi-analyze/lib/systemd/system/
-	install -D -m 0644 doc/usbcan-dump.md \
-		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/usbcan-dump.md
-	install -D -m 0644 doc/seven-dimension-logging.md \
-		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/seven-dimension-logging.md
-	install -D -m 0644 doc/FILES.md \
-		$(CURDIR)/debian/robopi-analyze/usr/share/doc/robopi-analyze/log-files.md
 	install -d $(CURDIR)/debian/robopi-analyze/usr/bin
-	ln -sf /opt/roboparty/bin/robopi-sixd-capture $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-capture
-	ln -sf /opt/roboparty/bin/robopi-sixd-analyze $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-analyze
-	ln -sf /opt/roboparty/bin/robopi-sixd-export $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-sixd-export
+	ln -sf /opt/roboparty/bin/robopi-seven-capture $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-capture
+	ln -sf /opt/roboparty/bin/robopi-seven-analyze $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-analyze
+	ln -sf /opt/roboparty/bin/robopi-seven-export $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-export
 	ln -sf /opt/roboparty/bin/robopi-comm-status $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-comm-status
 	ln -sf /opt/roboparty/bin/usbcan-capture $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-capture
 	ln -sf /opt/roboparty/bin/usbcan-debug-snapshot $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-debug-snapshot
@@ -64,4 +58,5 @@ override_dh_auto_install:
 	ln -sf /opt/roboparty/bin/robopi-can-restart $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-can-restart
 
 override_dh_installsystemd:
-	dh_installsystemd --no-enable --no-start
+	dh_installsystemd hpm-log-capture.service
+	dh_installsystemd --no-enable --no-start usbcan-capture.service

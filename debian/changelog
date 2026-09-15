@@ -1,3 +1,10 @@
+robopi-analyze (1.0.1-1) stable; urgency=medium
+
+  * Enable usbcan-capture.service at boot without starting capture during
+    package installation or upgrade.
+
+ -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
+
 robopi-analyze (1.0.0-1) stable; urgency=medium
 
   * Move RoboPi HPM firmware, HPM maintenance tools, USB-CAN capture tools

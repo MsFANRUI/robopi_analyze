@@ -1,0 +1,16 @@
+[Unit]
+Description=RoboPi HPM USB presence monitor and reset
+Documentation=file:/usr/share/doc/robopi-analyze/README.md
+After=local-fs.target systemd-modules-load.service
+
+[Service]
+Type=simple
+ExecStart=/opt/roboparty/bin/hpm_sreset --monitor
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hpm-sreset
+
+[Install]
+WantedBy=multi-user.target

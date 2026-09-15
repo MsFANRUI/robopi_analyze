@@ -40,6 +40,8 @@ override_dh_auto_install:
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/flash_hpm.sh
 	install -D -m 0755 bin/hpmtool.py \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpmtool
+	install -D -m 0755 bin/hpm_sreset.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpm_sreset
 	install -m 0644 etc/firmware/* \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/firmware/
 	install -m 0644 etc/default/* \
@@ -59,4 +61,5 @@ override_dh_auto_install:
 
 override_dh_installsystemd:
 	dh_installsystemd hpm-log-capture.service
-	dh_installsystemd --no-enable --no-start usbcan-capture.service
+	dh_installsystemd hpm-sreset.service
+	dh_installsystemd --no-start usbcan-capture.service

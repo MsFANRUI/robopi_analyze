@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import time
+import textwrap
 
 
 SERVICES = (
@@ -111,6 +112,12 @@ def service_text(states):
     return "  ".join(f"{label}: {state.upper()}" for label, state in states)
 
 
+def print_wrapped(value, width):
+    for line in textwrap.wrap(value, width=max(20, width), break_long_words=False,
+                              break_on_hyphens=False):
+        print(line)
+
+
 def dimension_states(args, can_states, services):
     states = []
     service_map = dict(services)
@@ -138,6 +145,7 @@ def dimension_states(args, can_states, services):
 
 def render(args, current, previous, elapsed):
     width = max(72, min(shutil.get_terminal_size((100, 30)).columns, 140))
+    compact = width < 110
     line = "=" * width
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_count, total_size, modified = capture_status(args.capture_dir)
@@ -146,8 +154,8 @@ def render(args, current, previous, elapsed):
     print(f" RoboPi Communication Status  {now}"[:width])
     print(line)
     services = service_states()
-    print(service_text(services)[:width])
-    print(" | ".join(f"{label}: {state}" for label, state in dimension_states(args, current, services))[:width])
+    print_wrapped(service_text(services), width)
+    print_wrapped(" | ".join(f"{label}: {state}" for label, state in dimension_states(args, current, services)), width)
     print("-" * width)
 
     for interface in args.can:
@@ -160,6 +168,13 @@ def render(args, current, previous, elapsed):
         tx = current_can["tx"]
         previous_rx = previous_can["rx"] if previous_can else None
         previous_tx = previous_can["tx"] if previous_can else None
+        if compact:
+            print(
+                f"CAN {interface}: {current_can['operstate']}/{current_can['can_state']} "
+                f"RX={rx.get('packets', 0)} TX={tx.get('packets', 0)} "
+                f"ERR={rx.get('errors', 0) + tx.get('errors', 0)}"
+            )
+            continue
         print(
             f"CAN {interface}: link={current_can['operstate']}  "
             f"controller={current_can['can_state']}"
@@ -184,7 +199,7 @@ def render(args, current, previous, elapsed):
     print("-" * width)
     print("Recent HPM UART log:")
     for entry in hpm_log(args.log_lines):
-        print(f"  {entry}"[:width])
+        print(f"  {entry[:max(0, width - 2)]}")
     print(line)
     print("Ctrl-C to exit | ERROR-ACTIVE and increasing RX/TX rates indicate traffic")
 

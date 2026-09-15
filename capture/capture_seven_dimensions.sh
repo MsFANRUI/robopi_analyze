@@ -75,3 +75,7 @@ finish() {
     echo "Seven-dimensional capture written to $output"
 }
 trap finish EXIT INT TERM
+
+# 必须阻塞在这里。脚本执行到文件末尾会立即退出并触发 EXIT trap 调用 finish()，
+# 把刚启动的七个维度进程全部杀掉，只剩 ring 抓包的 tcpdump 存活。
+wait

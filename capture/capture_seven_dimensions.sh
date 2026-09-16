@@ -67,6 +67,7 @@ finish() {
     [[ -n $capture_pid ]] && kill -INT "$capture_pid" 2>/dev/null
     for pid in "${dimension_pids[@]}"; do kill "$pid" 2>/dev/null; done
     wait 2>/dev/null
+    screen -S "$screen_session" -X log off 2>/dev/null || true
     "$dimension_dir/05_usb_pcap.sh" "$capture_dir" "$output"
     end_unix=$(now)
     sed -i '$d' "$output/manifest.json"

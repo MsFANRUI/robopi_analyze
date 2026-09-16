@@ -98,11 +98,22 @@ def parse_inference(path, rows):
 def parse_can_details(path, rows):
     if not path.exists():
         return
-    for line in path.read_text(errors="replace").splitlines():
+
+    text = path.read_text(errors="replace")
+    decoder = json.JSONDecoder()
+    index = 0
+    while index < len(text):
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if index >= len(text):
+            break
         try:
-            record = json.loads(line)
+            record, index = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            break
+        try:
             timestamp = float(record.pop("captured_at_unix"))
-        except (ValueError, TypeError, json.JSONDecodeError, KeyError):
+        except (ValueError, TypeError, KeyError, AttributeError):
             continue
         event(rows, "can-details", timestamp, "sample", json.dumps(record, separators=(",", ":")))
 
@@ -131,9 +142,22 @@ def shutil_which(command):
     return shutil.which(command) is not None
 
 
+def drop_outside_window(rows, manifest):
+    started = manifest.get("started_at_unix")
+    ended = manifest.get("ended_at_unix")
+    if started is None or ended is None:
+        return 0
+    kept = [row for row in rows if started <= row["timestamp"] <= ended]
+    dropped = len(rows) - len(kept)
+    rows[:] = kept
+    return dropped
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("session", type=Path)
+    parser.add_argument("--keep-outside", action="store_true",
+                        help="keep events stamped outside the session window")
     args = parser.parse_args()
     if not args.session.is_dir():
         parser.error(f"session does not exist: {args.session}")
@@ -150,6 +174,7 @@ def main():
     for pcap in sorted(args.session.glob("usbcan.pcap*")):
         parse_usb(pcap, rows)
     event(rows, "session", manifest.get("ended_at_unix"), "end", "session")
+    dropped = 0 if args.keep_outside else drop_outside_window(rows, manifest)
     rows.sort(key=lambda row: row["timestamp"])
     timeline = args.session / "timeline.csv"
     with timeline.open("w", newline="", encoding="utf-8") as stream:
@@ -161,6 +186,7 @@ def main():
         "started_at_unix": manifest.get("started_at_unix"),
         "ended_at_unix": manifest.get("ended_at_unix"),
         "event_count": len(rows),
+        "dropped_outside_window": dropped,
         "events_by_dimension": {dimension: sum(row["dimension"] == dimension for row in rows)
                                  for dimension in sorted({row["dimension"] for row in rows})},
         "timeline": str(timeline),

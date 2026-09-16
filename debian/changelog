@@ -1,3 +1,11 @@
+robopi-analyze (1.0.2-2) stable; urgency=medium
+
+  * fix flash_hpm.sh
+
+
+ -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
+
+
 robopi-analyze (1.0.2-1) stable; urgency=medium
 
   * Parse can-details.jsonl as a JSON object stream: records span two lines,

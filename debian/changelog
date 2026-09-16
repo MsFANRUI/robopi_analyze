@@ -1,3 +1,16 @@
+robopi-analyze (1.0.2-1) stable; urgency=medium
+
+  * Parse can-details.jsonl as a JSON object stream: records span two lines,
+    so the line-based reader silently dropped every sample.
+  * Drop events stamped outside the session window: dmesg --follow replays the
+    whole kernel ring buffer, surfacing boot-time messages as capture-time faults.
+  * Stop inference screen logging when the capture ends, so a finished session
+    directory stops growing.
+
+
+ -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
+
+
 robopi-analyze (1.0.1-1) stable; urgency=medium
 
   * Enable usbcan-capture.service at boot without starting capture during

@@ -67,6 +67,7 @@ finish() {
     [[ -n $capture_pid ]] && kill -INT "$capture_pid" 2>/dev/null
     for pid in "${dimension_pids[@]}"; do kill "$pid" 2>/dev/null; done
     wait 2>/dev/null
+    screen -S "$screen_session" -X log off 2>/dev/null || true
     "$dimension_dir/05_usb_pcap.sh" "$capture_dir" "$output"
     end_unix=$(now)
     sed -i '$d' "$output/manifest.json"
@@ -75,3 +76,7 @@ finish() {
     echo "Seven-dimensional capture written to $output"
 }
 trap finish EXIT INT TERM
+
+# 必须阻塞在这里。脚本执行到文件末尾会立即退出并触发 EXIT trap 调用 finish()，
+# 把刚启动的七个维度进程全部杀掉，只剩 ring 抓包的 tcpdump 存活。
+wait

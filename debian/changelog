@@ -1,3 +1,12 @@
+robopi-analyze (1.0.3-1) stable; urgency=medium
+
+  * Fix the missing shebang line in bin/hpm_sreset.sh so that
+    hpm-sreset.service can start.
+  * Reset the HPM into normal boot mode once when the USB presence
+    monitor starts.
+
+ -- chang <1984715306@qq.com>  Wed, 16 Sep 2026 16:09:46 +0800
+
 robopi-analyze (1.0.2-1) stable; urgency=medium
 
   * Parse can-details.jsonl as a JSON object stream: records span two lines,
@@ -9,7 +18,6 @@ robopi-analyze (1.0.2-1) stable; urgency=medium
 
 
  -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
-
 
 robopi-analyze (1.0.1-1) stable; urgency=medium
 

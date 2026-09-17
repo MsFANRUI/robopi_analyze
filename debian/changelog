@@ -1,9 +1,16 @@
 robopi-analyze (1.0.5-1) stable; urgency=medium
 
-  * Add thermal dimension and restore full dmesg history
+  * Add thermal dimension: sample CPU/GPU/NPU/package/center thermal zones
+    on the same timeline as the other dimensions.
+  * Revert dimension 03 to full dmesg history (boot log plus live follow);
+    the analyzer already drops events outside the session window by
+    default and --keep-outside still recovers the full history.
+  * Flush can.asc and the ring pcap into the session directory every
+    FLUSH_INTERVAL_SECS (default 10) instead of only at teardown.
+  * Translate remaining Chinese comments in the boot-capture hardening
+    work to English.
 
-
- -- wentywenty
+ -- wentywenty <2321901849@qq.com>  Wed, 17 Sep 2026 00:00:00 +0800
 
 robopi-analyze (1.0.4-1) stable; urgency=medium
 

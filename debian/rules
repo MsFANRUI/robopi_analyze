@@ -42,6 +42,8 @@ override_dh_auto_install:
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpmtool
 	install -D -m 0755 bin/hpm_sreset.sh \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpm_sreset
+	install -D -m 0755 bin/cleanup_sessions.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-session-cleanup
 	install -m 0644 etc/firmware/* \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/firmware/
 	install -m 0644 etc/default/* \
@@ -52,6 +54,7 @@ override_dh_auto_install:
 	ln -sf /opt/roboparty/bin/robopi-seven-capture $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-capture
 	ln -sf /opt/roboparty/bin/robopi-seven-analyze $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-analyze
 	ln -sf /opt/roboparty/bin/robopi-seven-export $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-seven-export
+	ln -sf /opt/roboparty/bin/robopi-session-cleanup $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-session-cleanup
 	ln -sf /opt/roboparty/bin/robopi-comm-status $(CURDIR)/debian/robopi-analyze/usr/bin/robopi-comm-status
 	ln -sf /opt/roboparty/bin/usbcan-capture $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-capture
 	ln -sf /opt/roboparty/bin/usbcan-debug-snapshot $(CURDIR)/debian/robopi-analyze/usr/bin/usbcan-debug-snapshot

@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # HPM BOOT 和 RESET 控制脚本
 # 适用于 RK3588 Linux
 # 需要 root 权限运行

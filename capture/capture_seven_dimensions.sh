@@ -5,12 +5,19 @@
 set -euo pipefail
 
 interfaces=(can0 can1 can2 can3)
-output=${1:-/var/log/robopi/seven-$(date +%Y%m%d-%H%M%S)}
+
+session_root=${SESSION_ROOT:-/home/robo/robopi-logs}
+output=${1:-$session_root/seven-$(date +%Y%m%d-%H%M%S)}
 hpm_service=${HPM_LOG_CAPTURE_SERVICE:-hpm-log-capture.service}
 bms_service=${BMS_SERVICE:-bms.service}
 capture_dir=${USBCAN_CAPTURE_DIR:-/run/usbcan}
 interval=${CAN_DETAILS_INTERVAL:-1}
 screen_session=${INFERENCE_SCREEN_SESSION:-inference_session}
+# 机身标识:主控序列号取自设备树(裸字节,须去掉 \0,并只保留 JSON 安全字符),
+# 读不到时降级用 machine-id;boot_id 标识本次开机,可与 journalctl --list-boots 对齐。
+board_serial=$(cat /proc/device-tree/serial-number 2>/dev/null | tr -d '\0' | tr -cd 'a-zA-Z0-9-' || true)
+[[ -n $board_serial ]] || board_serial=$(tr -cd 'a-zA-Z0-9-' < /etc/machine-id 2>/dev/null || true)
+boot_id=$(tr -cd 'a-zA-Z0-9-' < /proc/sys/kernel/random/boot_id 2>/dev/null || true)
 capture_pid=
 dimension_pids=()
 ended=no
@@ -34,10 +41,28 @@ if [[ ! -x $ring_capture && -x /opt/roboparty/bin/usbcan-capture ]]; then
 fi
 [[ -x $ring_capture ]] || die "USB-CAN ring capture command not found: $ring_capture"
 
+# 启动时先清理过期会话(超龄/超量),再检查空间,最后才建会话目录。
+cleanup_command=${SESSION_CLEANUP_COMMAND:-$script_dir/cleanup_sessions.sh}
+if [[ ! -x $cleanup_command && -x /opt/roboparty/bin/robopi-session-cleanup ]]; then
+    cleanup_command=/opt/roboparty/bin/robopi-session-cleanup
+fi
+if [[ -x $cleanup_command ]]; then
+    "$cleanup_command" || echo "robopi-seven-capture: session cleanup failed, continuing" >&2
+fi
+
+session_parent=$(dirname "$output")
+mkdir -p "$session_parent"
+# 空间预检:目标分区至少要装得下 ring 上限加余量。宁可在这里明确失败,
+# 也不让维度写一半变成静默的 0 字节文件。
+need_kb=$(( ${USBCAN_FILE_SIZE_MB:-64} * ${USBCAN_FILE_COUNT:-8} + 512 ))
+have_kb=$(df -Pk "$session_parent" 2>/dev/null | awk 'NR==2 {print $4}' || true)
+[[ -n $have_kb && $have_kb -ge $need_kb ]] || \
+    die "insufficient space in $session_parent: need ${need_kb} KiB, available ${have_kb:-unknown} KiB"
+
 mkdir -p "$output"
 start_unix=$(now)
-printf '{\n  "started_at_unix": %s,\n  "interfaces": ["can0", "can1", "can2", "can3"],\n  "capture_dir": "%s",\n  "capture_service": "usbcan-capture.service",\n  "hpm_service": "%s",\n  "bms_service": "%s",\n  "inference_screen_session": "%s"\n}\n' \
-    "$start_unix" "$capture_dir" "$hpm_service" "$bms_service" "$screen_session" > "$output/manifest.json"
+printf '{\n  "started_at_unix": %s,\n  "boot_id": "%s",\n  "board_serial": "%s",\n  "interfaces": ["can0", "can1", "can2", "can3"],\n  "capture_dir": "%s",\n  "capture_service": "usbcan-capture.service",\n  "hpm_service": "%s",\n  "bms_service": "%s",\n  "inference_screen_session": "%s"\n}\n' \
+    "$start_unix" "$boot_id" "$board_serial" "$capture_dir" "$hpm_service" "$bms_service" "$screen_session" > "$output/manifest.json"
 
 # 先创建固定会话结构；没有对应硬件或工具时，维度文件保持为空。
 : > "$output/bms-status.txt"
@@ -51,7 +76,7 @@ printf '{\n  "started_at_unix": %s,\n  "interfaces": ["can0", "can1", "can2", "c
 systemctl start "$hpm_service" || true
 
 CAPTURE_DIR="$capture_dir" "$ring_capture" & capture_pid=$!
-"$dimension_dir/01_bms_status.sh" "$output" "$interval" & dimension_pids+=("$!")
+"$dimension_dir/01_bms_status.sh" > "$output/bms-status.txt" 2>&1 & dimension_pids+=("$!")
 "$dimension_dir/02_can_details.sh" "$output/can-details.jsonl" "$interval" & dimension_pids+=("$!")
 "$dimension_dir/03_kernel_dmesg.sh" > "$output/dmesg-live.txt" 2>&1 & dimension_pids+=("$!")
 "$dimension_dir/04_hpm_uart.sh" "$hpm_service" > "$output/hpm-uart-live.txt" 2>&1 & dimension_pids+=("$!")
@@ -77,6 +102,5 @@ finish() {
 }
 trap finish EXIT INT TERM
 
-# 必须阻塞在这里。脚本执行到文件末尾会立即退出并触发 EXIT trap 调用 finish()，
-# 把刚启动的七个维度进程全部杀掉，只剩 ring 抓包的 tcpdump 存活。
+
 wait

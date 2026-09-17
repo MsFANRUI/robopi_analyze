@@ -66,6 +66,30 @@ if [ "${USBCAN_ALLOW_NON_RUN_CAPTURE_DIR:-no}" != yes ]; then
     esac
 fi
 
+# CAN_INTERFACE 由 EtherCANFD 提供,常在开机后一段时间才注册;解析 usbmon
+# 依赖它的 sysfs 路径,所以要等它出现,而不是查一次就放弃。
+wait_for_interface()
+{
+    limit=${USBCAN_CAN_WAIT_SECS:-120}
+    step=2
+    waited=0
+    while [ ! -e "$SYS_CLASS_NET/$CAN_INTERFACE" ]; do
+        if [ "$waited" -eq 0 ]; then
+            echo "usbcan-capture: waiting for $CAN_INTERFACE to appear (up to ${limit}s)" >&2
+        fi
+        if [ "$waited" -ge "$limit" ]; then
+            return 1
+        fi
+        sleep "$step"
+        waited=$((waited + step))
+    done
+    return 0
+}
+
+if ! wait_for_interface; then
+    die "$CAN_INTERFACE did not appear within ${USBCAN_CAN_WAIT_SECS:-120}s; is USB-CAN connected?"
+fi
+
 [ -x "$MODPROBE_BIN" ] || die "modprobe not found: $MODPROBE_BIN"
 [ -x "$TCPDUMP_BIN" ] || die "tcpdump not found; install the tcpdump package"
 

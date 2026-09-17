@@ -1,3 +1,20 @@
+robopi-analyze (1.0.7-1) stable; urgency=medium
+
+  * Auto-rotate a running capture into a fresh session every
+    SESSION_MAX_DURATION_SECS (default 1800), so no single session's files
+    grow unbounded over a long unattended run. Rotation reuses the exact
+    same teardown as a real stop (can.asc conversion, pcap copy, manifest
+    ended_at_unix), then starts a new session; an external stop signal
+    always takes priority over a pending rotation.
+  * Replace the session-count-based cleanup rule with a total-size budget
+    (SESSION_MAX_TOTAL_MB, default 8000): "keep the last N sessions" is
+    not a meaningful proxy for disk usage once sessions can auto-rotate on
+    a timer, since N sessions might be 5 hours or 5 days of data depending
+    on how fast they are produced. The newest session per root is still
+    always protected regardless of size.
+
+ -- wentywenty <2321901849@qq.com>  Wed, 17 Sep 2026 00:00:00 +0800
+
 robopi-analyze (1.0.6-1) stable; urgency=high
 
   * Fix data corruption in the periodic ring pcap flush: on wraparound the

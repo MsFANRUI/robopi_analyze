@@ -9,10 +9,21 @@ FILE_COUNT=8
 # a full capture (the old /var/log/robopi default is a 47MB zram tmpfs).
 SESSION_ROOT=/home/robo/robopi-logs
 
-# Session cleanup: sessions older than SESSION_RETENTION_DAYS or beyond
-# SESSION_RETENTION_COUNT are removed before each new capture starts.
+# Session cleanup, run before each new capture starts: sessions older than
+# SESSION_RETENTION_DAYS are removed; beyond that, sessions are removed
+# newest-first-protected/oldest-first-evicted once their combined size
+# would exceed SESSION_MAX_TOTAL_MB. Sizing the second rule directly in
+# disk space (not a session count) keeps it correct regardless of how
+# fast sessions are produced, e.g. once SESSION_MAX_DURATION_SECS rotation
+# is in play.
 SESSION_RETENTION_DAYS=7
-SESSION_RETENTION_COUNT=10
+SESSION_MAX_TOTAL_MB=8000
+
+# Auto-rotate a running capture into a fresh session after this many
+# seconds, so no single session's files can grow unbounded during a long
+# unattended run. 0 disables rotation (a single session runs until
+# stopped, the pre-rotation behavior).
+SESSION_MAX_DURATION_SECS=1800
 
 # Max seconds to wait for CAN_INTERFACE before giving up on the ring capture.
 USBCAN_CAN_WAIT_SECS=120

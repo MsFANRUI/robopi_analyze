@@ -1,9 +1,9 @@
 #!/bin/bash
 # Copyright (C) 2026 wentywenty
 # SPDX-License-Identifier: GPL-3.0
-# 读取 inference_session screen 会话的文本输出。
-# screen 会话经常晚于采集启动,因此周期重试挂载,而不是启动时查一次就放弃;
-# 超时后写明原因退出,不再静默。
+# Read the inference_session screen output. The screen session often starts
+# after capture does, so retry attaching periodically instead of checking
+# once and giving up; log the reason on timeout instead of exiting silently.
 set -euo pipefail
 session=${INFERENCE_SCREEN_SESSION:-inference_session}
 output=${1:?log output required}

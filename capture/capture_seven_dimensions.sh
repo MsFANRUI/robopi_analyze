@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copyright (C) 2026 wentywenty
-# 编排七个维度采集脚本，负责会话生命周期、服务状态和 manifest，不实现具体采集逻辑。
+# Orchestrates the seven capture dimensions: session lifecycle, service
+# state and manifest. Does not implement any capture logic itself.
 # SPDX-License-Identifier: GPL-3.0
 set -euo pipefail
 
@@ -13,8 +14,9 @@ bms_service=${BMS_SERVICE:-bms.service}
 capture_dir=${USBCAN_CAPTURE_DIR:-/run/usbcan}
 interval=${CAN_DETAILS_INTERVAL:-1}
 screen_session=${INFERENCE_SCREEN_SESSION:-inference_session}
-# 机身标识:主控序列号取自设备树(裸字节,须去掉 \0,并只保留 JSON 安全字符),
-# 读不到时降级用 machine-id;boot_id 标识本次开机,可与 journalctl --list-boots 对齐。
+# Board identity: serial from the device tree (raw bytes, strip \0 and
+# keep only JSON-safe chars), falling back to machine-id; boot_id ties the
+# session to this boot (matches journalctl --list-boots).
 board_serial=$(cat /proc/device-tree/serial-number 2>/dev/null | tr -d '\0' | tr -cd 'a-zA-Z0-9-' || true)
 [[ -n $board_serial ]] || board_serial=$(tr -cd 'a-zA-Z0-9-' < /etc/machine-id 2>/dev/null || true)
 boot_id=$(tr -cd 'a-zA-Z0-9-' < /proc/sys/kernel/random/boot_id 2>/dev/null || true)
@@ -41,7 +43,8 @@ if [[ ! -x $ring_capture && -x /opt/roboparty/bin/usbcan-capture ]]; then
 fi
 [[ -x $ring_capture ]] || die "USB-CAN ring capture command not found: $ring_capture"
 
-# 启动时先清理过期会话(超龄/超量),再检查空间,最后才建会话目录。
+# Clean up expired sessions (age/count) before checking space and
+# creating the new session directory.
 cleanup_command=${SESSION_CLEANUP_COMMAND:-$script_dir/cleanup_sessions.sh}
 if [[ ! -x $cleanup_command && -x /opt/roboparty/bin/robopi-session-cleanup ]]; then
     cleanup_command=/opt/roboparty/bin/robopi-session-cleanup
@@ -52,8 +55,8 @@ fi
 
 session_parent=$(dirname "$output")
 mkdir -p "$session_parent"
-# 空间预检:目标分区至少要装得下 ring 上限加余量。宁可在这里明确失败,
-# 也不让维度写一半变成静默的 0 字节文件。
+# Preflight: the target partition must fit the ring cap plus a margin.
+# Fail loudly here rather than let dimensions silently write 0-byte files.
 need_kb=$(( ${USBCAN_FILE_SIZE_MB:-64} * ${USBCAN_FILE_COUNT:-8} + 512 ))
 have_kb=$(df -Pk "$session_parent" 2>/dev/null | awk 'NR==2 {print $4}' || true)
 [[ -n $have_kb && $have_kb -ge $need_kb ]] || \
@@ -64,7 +67,8 @@ start_unix=$(now)
 printf '{\n  "started_at_unix": %s,\n  "boot_id": "%s",\n  "board_serial": "%s",\n  "interfaces": ["can0", "can1", "can2", "can3"],\n  "capture_dir": "%s",\n  "capture_service": "usbcan-capture.service",\n  "hpm_service": "%s",\n  "bms_service": "%s",\n  "inference_screen_session": "%s"\n}\n' \
     "$start_unix" "$boot_id" "$board_serial" "$capture_dir" "$hpm_service" "$bms_service" "$screen_session" > "$output/manifest.json"
 
-# 先创建固定会话结构；没有对应硬件或工具时，维度文件保持为空。
+# Create the fixed session layout up front; dimensions stay empty when
+# their hardware or tool is unavailable.
 : > "$output/bms-status.txt"
 : > "$output/can-details.jsonl"
 : > "$output/dmesg-live.txt"
@@ -72,6 +76,7 @@ printf '{\n  "started_at_unix": %s,\n  "boot_id": "%s",\n  "board_serial": "%s",
 : > "$output/can.log"
 : > "$output/can.asc"
 : > "$output/inference-session.txt"
+: > "$output/thermal.txt"
 
 systemctl start "$hpm_service" || true
 
@@ -82,6 +87,19 @@ CAPTURE_DIR="$capture_dir" "$ring_capture" & capture_pid=$!
 "$dimension_dir/04_hpm_uart.sh" "$hpm_service" > "$output/hpm-uart-live.txt" 2>&1 & dimension_pids+=("$!")
 "$dimension_dir/06_can_asc.sh" "$output" & dimension_pids+=("$!")
 INFERENCE_SCREEN_SESSION="$screen_session" "$dimension_dir/07_inference_screen.sh" "$output/inference-session.txt" & dimension_pids+=("$!")
+"$dimension_dir/08_thermal.sh" "$output/thermal.txt" "$interval" & dimension_pids+=("$!")
+
+# Periodically flush can.asc and the ring pcap into the session dir so it
+# stays usable mid-capture. Teardown still performs the full conversion
+# and copy. FLUSH_INTERVAL_SECS=0 disables this.
+flush_interval=${FLUSH_INTERVAL_SECS:-10}
+flush_command=${SEVEN_FLUSH_COMMAND:-$script_dir/flush_session.sh}
+if [[ ! -x $flush_command && -x /opt/roboparty/bin/robopi-session-flush ]]; then
+    flush_command=/opt/roboparty/bin/robopi-session-flush
+fi
+if [[ $flush_interval =~ ^[0-9]+$ && $flush_interval -gt 0 && -x $flush_command ]]; then
+    "$flush_command" "$output" "$capture_dir" "$flush_interval" & dimension_pids+=("$!")
+fi
 
 echo "Seven-dimensional capture started: $output"
 echo "Capturing seven dimensions; press Ctrl-C to finish."

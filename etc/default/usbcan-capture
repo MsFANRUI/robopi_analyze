@@ -5,12 +5,20 @@ CAPTURE_DIR=/run/usbcan
 FILE_SIZE_MB=64
 FILE_COUNT=8
 
-
+# Session directory root; must be on persistent storage large enough for
+# a full capture (the old /var/log/robopi default is a 47MB zram tmpfs).
 SESSION_ROOT=/home/robo/robopi-logs
 
-
+# Session cleanup: sessions older than SESSION_RETENTION_DAYS or beyond
+# SESSION_RETENTION_COUNT are removed before each new capture starts.
 SESSION_RETENTION_DAYS=7
 SESSION_RETENTION_COUNT=10
 
+# Max seconds to wait for CAN_INTERFACE before giving up on the ring capture.
 USBCAN_CAN_WAIT_SECS=120
+
+# Flush interval: how often (seconds) can.asc and the ring pcap get their
+# incremental updates written into the session dir. 0 disables flushing
+# (falls back to teardown-only).
+FLUSH_INTERVAL_SECS=10
 

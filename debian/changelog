@@ -1,3 +1,10 @@
+robopi-analyze (1.0.5-1) stable; urgency=medium
+
+  * Add thermal dimension and restore full dmesg history
+
+
+ -- wentywenty
+
 robopi-analyze (1.0.4-1) stable; urgency=medium
 
   * Default the session root to /home/robo/robopi-logs (SESSION_ROOT) and

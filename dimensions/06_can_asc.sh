@@ -22,27 +22,15 @@ elif [[ -n $first ]]; then
     output=$first
     input=$(mktemp --tmpdir robopi-can-capture.XXXXXX.log)
 else
-    output=/var/log/robopi/can-$(date +%Y%m%d-%H%M%S).asc
+    output=${SESSION_ROOT:-/home/robo/robopi-logs}/can-$(date +%Y%m%d-%H%M%S).asc
     input=$(mktemp --tmpdir robopi-can-capture.XXXXXX.log)
 fi
 
-available_interfaces=()
-for interface in "${interfaces[@]}"; do
-    if ip link show dev "$interface" >/dev/null 2>&1; then
-        available_interfaces+=("$interface")
-    fi
-done
 mkdir -p "$(dirname "$output")"
 [[ ! -e $output || -d $first ]] || die "output already exists: $output"
 
 if [[ -s $input && -d $first ]]; then
     log2asc -I "$input" -O "$output" "${interfaces[@]}"
-    exit 0
-fi
-
-if [[ ${#available_interfaces[@]} -eq 0 && ! -s $input ]]; then
-    : > "$output"
-    [[ -d $first ]] || rm -f "$input"
     exit 0
 fi
 
@@ -59,9 +47,14 @@ finish() {
 trap 'interrupted=yes; finish; exit 0' INT TERM
 trap '[[ -d $first ]] || rm -f "$input"' EXIT
 
-echo "Capturing ${available_interfaces[*]}; press Ctrl-C to write ASC: $output"
+# 用 any 监听全部 CAN 接口:EtherCANFD 提供的 can0~can3 常在开机后一段时间才
+# 出现,而 any 绑定"当前和将来的全部接口",晚出现的接口也能立即收到,
+# 因此不需要任何等待或重试逻辑。原生三路(can_top/can_hipnuc/can_bottom)
+# 的帧会一并写入 can.log,但收尾时 log2asc 只按 interfaces 列表转换,
+# 原生三路被自然过滤,ASC 内容与只监听 can0~can3 时一致。
+echo "Capturing all CAN interfaces (any); press Ctrl-C to write ASC: $output"
 set +e
-candump -L -t a "${available_interfaces[@]}" > "$input" & capture_pid=$!
+candump -L -t a any > "$input" & capture_pid=$!
 wait "$capture_pid"
 capture_status=$?
 set -e

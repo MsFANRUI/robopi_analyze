@@ -23,11 +23,15 @@ def read_manifest(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+
+CAN_INTERFACES = ("can0", "can1", "can2", "can3")
+
+
 def parse_can(path, rows):
     first = last = None
     for line in path.read_text(errors="replace").splitlines():
         match = re.match(r"\((\d+\.\d+)\)\s+(\S+)\s+(\S+)", line)
-        if not match:
+        if not match or match.group(2) not in CAN_INTERFACES:
             continue
         timestamp = float(match.group(1))
         first = timestamp if first is None else first
@@ -43,6 +47,27 @@ def parse_unix_lines(path, rows, dimension):
         match = re.match(r"(?:[^ ]+\s+)?(\d+\.\d+)\s+(.*)", line)
         if match:
             event(rows, dimension, float(match.group(1)), "log", match.group(2))
+
+
+BMS_LINE = re.compile(
+    r"(\d+\.\d+)\s+\S+\s+\S+.*?\[BMS Data\] Voltage: (\d+(?:\.\d+)?)V"
+    r" \| Current: (\d+(?:\.\d+)?)A \| SoC: (\d+)% \| Power: (\S+)")
+
+
+def parse_bms(path, rows):
+    """把 bms_daemon 的数据行解析成结构化事件(电压/电流/SoC/电源状态)。"""
+    if not path.exists():
+        return
+    for line in path.read_text(errors="replace").splitlines():
+        match = BMS_LINE.match(line)
+        if not match:
+            continue
+        detail = json.dumps({"voltage": float(match.group(2)),
+                             "current": float(match.group(3)),
+                             "soc": int(match.group(4)),
+                             "power": match.group(5)},
+                            separators=(",", ":"))
+        event(rows, "bms", float(match.group(1)), "sample", detail)
 
 
 def parse_marked_snapshot(path, rows, dimension):
@@ -166,8 +191,12 @@ def main():
     event(rows, "session", manifest.get("started_at_unix"), "start", "session")
     event(rows, "bms", manifest.get("started_at_unix"), "status", "bms.service")
     parse_can(args.session / "can.log", rows)
+  
     parse_marked_snapshot(args.session / "bms-status.txt", rows, "bms")
+    parse_bms(args.session / "bms-status.txt", rows)
+
     parse_dmesg(args.session / "dmesg-live.txt", rows)
+    parse_unix_lines(args.session / "dmesg-live.txt", rows, "dmesg")
     parse_unix_lines(args.session / "hpm-uart-live.txt", rows, "hpm-uart")
     parse_inference(args.session / "inference-session.txt", rows)
     parse_can_details(args.session / "can-details.jsonl", rows)

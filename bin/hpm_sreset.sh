@@ -27,6 +27,17 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 if [ "${1:-}" = "--monitor" ]; then
+    echo "开机复位：BOOT 拉低，从内部 Flash 正常启动"
+    echo 0 > "$BOOT"
+    sleep 0.1
+
+    echo 0 > "$RESET"
+    sleep 0.1
+
+    echo 1 > "$RESET"
+    echo "开机复位完成：BOOT=0 RESET=1"
+    echo
+
     echo "开始监视 HPM USB 设备 1209:2323"
     while :; do
         if lsusb -d 1209:2323 >/dev/null 2>&1; then

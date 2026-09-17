@@ -6,7 +6,8 @@ RoboPi HPM、BMS、电源和通信故障分析工具包，面向 Ubuntu 24.04 AR
 ## 服务职责
 
 - `hpm-log-capture.service` 是常驻 HPM 日志守护进程，持续读取 `/dev/ttyS4`。
-- `hpm-sreset.service` 是常驻 HPM USB 设备监视器，找不到 HPM 时执行复位。
+- `hpm-sreset.service` 启动时先执行一次 HPM 正常启动复位，之后作为常驻监视器，
+  找不到 HPM 时执行复位。
 - `usbcan-capture.service` 安装后默认启用，系统下次启动时自动开始七维采集。
 - `usbcan-debug-snapshot` 用于机器人即将下电或故障发生时保存完整现场。
 

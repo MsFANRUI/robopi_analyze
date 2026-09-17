@@ -1,10 +1,40 @@
+robopi-analyze (1.0.4-1) stable; urgency=medium
+
+  * Default the session root to /home/robo/robopi-logs (SESSION_ROOT) and
+    preflight free space before starting a capture; the old /var/log/robopi
+    default sits on a 47 MB zram and a single session fills it.
+  * Add robopi-session-cleanup and run it before each capture: sessions
+    older than SESSION_RETENTION_DAYS or beyond SESSION_RETENTION_COUNT are
+    removed, the newest one is always kept.
+  * Record the board serial number and boot id in manifest.json.
+  * Capture CAN traffic on "any" so interfaces that appear late (the
+    EtherCANFD can0-can3) are recorded without any wait logic; log2asc
+    still converts only can0-can3.
+  * Wait for CAN_INTERFACE before resolving usbmon in the ring capture
+    instead of aborting when it is absent.
+  * Retry attaching the inference screen session instead of checking once
+    and giving up silently.
+  * Follow the bms.service journal stream and journalctl -k for kernel
+    messages instead of truncated status polls and replayed dmesg history.
+  * Analyzer: structured BMS events, short-unix dmesg parsing, and can-asc
+    filtered to can0-can3 to match the ASC output.
+
+ -- wentywenty <2321901849@qq.com>  Wed, 17 Sep 2026 00:00:00 +0800
+
+robopi-analyze (1.0.3-1) stable; urgency=medium
+
+  * Fix the missing shebang line in bin/hpm_sreset.sh so that
+    hpm-sreset.service can start.
+  * Reset the HPM into normal boot mode once when the USB presence
+    monitor starts.
+
+ -- chang <1984715306@qq.com>  Wed, 16 Sep 2026 16:09:46 +0800
+
 robopi-analyze (1.0.2-2) stable; urgency=medium
 
   * fix flash_hpm.sh
 
-
  -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
-
 
 robopi-analyze (1.0.2-1) stable; urgency=medium
 
@@ -15,9 +45,7 @@ robopi-analyze (1.0.2-1) stable; urgency=medium
   * Stop inference screen logging when the capture ends, so a finished session
     directory stops growing.
 
-
  -- wentywenty <2321901849@qq.com>  Tue, 15 Sep 2026 00:00:00 +0800
-
 
 robopi-analyze (1.0.1-1) stable; urgency=medium
 

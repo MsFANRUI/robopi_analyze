@@ -1,3 +1,15 @@
+robopi-analyze (1.0.6-1) stable; urgency=high
+
+  * Fix data corruption in the periodic ring pcap flush: on wraparound the
+    ring file is truncated and rewritten by tcpdump, but the flush loop
+    kept appending onto the session's existing copy instead of replacing
+    it, producing an invalid multi-segment pcap file that could grow far
+    past the 64 MB ring cap. Ring files are bounded and always fully
+    rewritten on change, so the flush now mirrors the current content on
+    every mtime change instead of tracking a byte offset.
+
+ -- wentywenty <2321901849@qq.com>  Wed, 17 Sep 2026 00:00:00 +0800
+
 robopi-analyze (1.0.5-1) stable; urgency=medium
 
   * Add thermal dimension: sample CPU/GPU/NPU/package/center thermal zones

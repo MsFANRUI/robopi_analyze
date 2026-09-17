@@ -7,9 +7,11 @@
 #   can.asc      — track the last converted byte offset in can.log, feed only
 #                  the new bytes to log2asc and append. Cost stays constant
 #                  regardless of file size.
-#   usbcan.pcap* — append only the new bytes from the ring copy; a ring
-#                  wraparound (file truncated and rewritten) is detected and
-#                  the file is recopied from scratch.
+#   usbcan.pcap* — each ring file is bounded and gets truncated by tcpdump
+#                  on wraparound, so there is no meaningful "since session
+#                  start" delta to accumulate. Whenever a ring file's mtime
+#                  changes, its current full content replaces the session's
+#                  copy (same as teardown's 05_usb_pcap.sh, just more often).
 #
 # Teardown still performs the authoritative full log2asc conversion and pcap
 # copy, which overwrite these incremental results.
@@ -58,7 +60,7 @@ while :; do
         fi
     fi
 
-    # ---- incremental ring pcap sync ----
+    # ---- ring pcap mirror ----
     for f in "$ring"/usbcan.pcap*; do
         [ -f "$f" ] || continue
         name=${f##*/}
@@ -66,14 +68,11 @@ while :; do
         case $idx in
             ''|*[!0-9]*) continue ;;
         esac
-        eval "done=\${copied_$idx:-0}"
-        s=$(stat -c %s "$f")
-        if [ "$s" -lt "$done" ]; then
-            done=0        # ring wrapped: file was truncated, recopy from scratch
-        fi
-        if [ "$s" -gt "$done" ]; then
-            tail -c +"$((done + 1))" "$f" >> "$session/$name"
-            eval "copied_$idx=$s"
+        mtime=$(stat -c %Y "$f" 2>/dev/null) || continue
+        eval "last_mtime=\${ring_mtime_$idx:-0}"
+        if [ "$mtime" != "$last_mtime" ]; then
+            cp -f "$f" "$session/$name.tmp" 2>/dev/null && mv -f "$session/$name.tmp" "$session/$name"
+            eval "ring_mtime_$idx=$mtime"
         fi
     done
 done

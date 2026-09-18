@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (C) 2026 wentywenty
 # SPDX-License-Identifier: GPL-3.0
-# 负责四路 CAN 的 candump 采集和 ASC 转换，是 CAN 日志的唯一实现入口。
+# Sole implementation of CAN logging: candump capture plus ASC conversion.
 set -euo pipefail
 
 interfaces=(can0 can1 can2 can3)
@@ -47,11 +47,12 @@ finish() {
 trap 'interrupted=yes; finish; exit 0' INT TERM
 trap '[[ -d $first ]] || rm -f "$input"' EXIT
 
-# 用 any 监听全部 CAN 接口:EtherCANFD 提供的 can0~can3 常在开机后一段时间才
-# 出现,而 any 绑定"当前和将来的全部接口",晚出现的接口也能立即收到,
-# 因此不需要任何等待或重试逻辑。原生三路(can_top/can_hipnuc/can_bottom)
-# 的帧会一并写入 can.log,但收尾时 log2asc 只按 interfaces 列表转换,
-# 原生三路被自然过滤,ASC 内容与只监听 can0~can3 时一致。
+# Listen on "any" instead of naming interfaces: EtherCANFD's can0-can3 often
+# appear well after boot, and "any" binds current and future interfaces, so
+# late arrivals are captured with no wait/retry logic needed. Frames from
+# the native buses (can_top/can_hipnuc/can_bottom) end up in can.log too,
+# but log2asc below only converts the `interfaces` list, so they are
+# filtered out and the ASC output matches listening on can0-can3 alone.
 echo "Capturing all CAN interfaces (any); press Ctrl-C to write ASC: $output"
 set +e
 candump -L -t a any > "$input" & capture_pid=$!

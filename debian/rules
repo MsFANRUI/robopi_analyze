@@ -44,6 +44,8 @@ override_dh_auto_install:
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/hpm_sreset
 	install -D -m 0755 bin/cleanup_sessions.sh \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-session-cleanup
+	install -D -m 0755 capture/flush_session.sh \
+		$(CURDIR)/debian/robopi-analyze/opt/roboparty/bin/robopi-session-flush
 	install -m 0644 etc/firmware/* \
 		$(CURDIR)/debian/robopi-analyze/opt/roboparty/lib/firmware/
 	install -m 0644 etc/default/* \

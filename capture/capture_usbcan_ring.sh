@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copyright (C) 2026 wentywenty
 # SPDX-License-Identifier: GPL-3.0
-# 使用 usbmon 和 tcpdump 持续保存 USB-CAN PCAP 循环文件，并联动 HPM 日志服务。
+# Keeps a rolling USB-CAN PCAP capture using usbmon and tcpdump.
 set -eu
 
 USBMON_IFACE=${USBMON_IFACE:-auto}
@@ -66,8 +66,9 @@ if [ "${USBCAN_ALLOW_NON_RUN_CAPTURE_DIR:-no}" != yes ]; then
     esac
 fi
 
-# CAN_INTERFACE 由 EtherCANFD 提供,常在开机后一段时间才注册;解析 usbmon
-# 依赖它的 sysfs 路径,所以要等它出现,而不是查一次就放弃。
+# CAN_INTERFACE is provided by EtherCANFD and often registers well after
+# boot; resolving usbmon depends on its sysfs path, so wait instead of
+# checking once and giving up.
 wait_for_interface()
 {
     limit=${USBCAN_CAN_WAIT_SECS:-120}

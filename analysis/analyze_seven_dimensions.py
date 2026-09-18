@@ -23,7 +23,8 @@ def read_manifest(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-
+# Only these count toward can-asc: can.log also carries native-bus frames
+# (can_top/can_hipnuc/can_bottom) since capture listens on "any".
 CAN_INTERFACES = ("can0", "can1", "can2", "can3")
 
 
@@ -55,7 +56,7 @@ BMS_LINE = re.compile(
 
 
 def parse_bms(path, rows):
-    """把 bms_daemon 的数据行解析成结构化事件(电压/电流/SoC/电源状态)。"""
+    """Parse bms_daemon lines into structured voltage/current/soc/power events."""
     if not path.exists():
         return
     for line in path.read_text(errors="replace").splitlines():
@@ -191,13 +192,15 @@ def main():
     event(rows, "session", manifest.get("started_at_unix"), "start", "session")
     event(rows, "bms", manifest.get("started_at_unix"), "status", "bms.service")
     parse_can(args.session / "can.log", rows)
-  
+    # bms-status.txt has two generations of format: the old systemctl status
+    # snapshot and the new journalctl data line. Each parser only matches
+    # its own format, so both can run unconditionally.
     parse_marked_snapshot(args.session / "bms-status.txt", rows, "bms")
     parse_bms(args.session / "bms-status.txt", rows)
-
     parse_dmesg(args.session / "dmesg-live.txt", rows)
     parse_unix_lines(args.session / "dmesg-live.txt", rows, "dmesg")
     parse_unix_lines(args.session / "hpm-uart-live.txt", rows, "hpm-uart")
+    parse_unix_lines(args.session / "thermal.txt", rows, "thermal")
     parse_inference(args.session / "inference-session.txt", rows)
     parse_can_details(args.session / "can-details.jsonl", rows)
     for pcap in sorted(args.session.glob("usbcan.pcap*")):

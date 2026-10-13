@@ -140,10 +140,18 @@ unzip -l YYYYMMDD-HHMMSS.zip | head
 
 ## 分析与导出
 
-分析七维快照，会生成 `timeline.csv` 和 `summary.json`：
+分析七维快照，每个维度生成一个 CSV 文件（`can_frames.csv`、`bms.csv`、`dmesg.csv`、
+`hpm_uart.csv`、`thermal.csv`、`inference.csv`、`can_details.csv`、`usb_pcap.csv`，
+没有数据的维度不生成文件），外加 `summary.json` 汇总各文件与行数：
 
 ```bash
 robopi-seven-analyze /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS
+```
+
+需要旧的合并时间轴时加 `--merged`，额外生成 `timeline.csv`：
+
+```bash
+robopi-seven-analyze --merged /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS
 ```
 
 导出 ZIP 和 SHA-256：
@@ -186,7 +194,7 @@ analyze-ethercan-pcap /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS --top 50
 | `bin/export_seven_dimensions.sh` | 分析、打包七维会话 |
 | `bin/restart_can_interfaces.sh` | 重启四路 CAN，不修改 CAN 配置 |
 | `bin/show_communication_dashboard.py` | 在线通信状态面板 |
-| `analysis/analyze_seven_dimensions.py` | 合并七维日志时间线 |
+| `analysis/analyze_seven_dimensions.py` | 七维日志按维度拆分为 CSV（`--merged` 出合并时间轴） |
 | `analysis/analyze_usbcan_urb.py` | 分析 USB URB 状态和错误 |
 | `analysis/analyze_usbcan_timeline.py` | 按时间窗口统计 USB 流量 |
 | `analysis/analyze_usbcan_echo.py` | 检查 CAN TX echo context |

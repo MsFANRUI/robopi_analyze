@@ -1,3 +1,16 @@
+robopi-analyze (1.0.10-1) stable; urgency=medium
+
+  * robopi-seven-analyze: write one CSV per dimension instead of a single
+    merged timeline.csv — can_frames.csv (interface/frame as separate
+    columns), bms.csv (voltage/current/soc/power as real columns, no more
+    JSON-in-detail), plus dmesg/hpm_uart/thermal/inference/can_details/
+    usb_pcap. Dimensions with no data produce no file; summary.json gains
+    an "outputs" map from dimension to file and row count. --merged still
+    writes the old combined timeline.csv byte-identically for existing
+    workflows.
+
+ -- wentywenty <2321901849@qq.com>  Tue, 13 Oct 2026 00:00:00 +0800
+
 robopi-analyze (1.0.9-1) stable; urgency=medium
 
   * Ship analyze-can-asc (ASC periodicity/jitter/gap analysis) as a packaged

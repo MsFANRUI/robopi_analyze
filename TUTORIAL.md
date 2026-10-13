@@ -102,24 +102,35 @@ sudo systemctl start usbcan-capture
 robopi-seven-analyze /home/robo/robopi-logs/seven-20260917-091256
 ```
 
-在会话目录里生成两个文件:
+在会话目录里按维度生成 CSV 文件(没有数据的维度不生成文件),外加 `summary.json`:
 
 | 文件 | 内容 |
 |---|---|
-| `timeline.csv` | **核心产出**:七个维度的事件按时间排序,合并成一张统一时间轴 |
-| `summary.json` | 各维度的事件数量统计 |
+| `can_frames.csv` | **核心产出**:can0~can3 每帧一行,`interface`/`frame` 分列(原生总线如 can_hipnuc 已过滤) |
+| `bms.csv` | 电压/电流/SoC/功率,数值为独立列 |
+| `dmesg.csv` | 内核日志 |
+| `hpm_uart.csv` | HPM 串口日志 |
+| `thermal.csv` | 温度记录 |
+| `inference.csv` | inference screen 会话日志 |
+| `can_details.csv` | CAN 接口状态快照 |
+| `usb_pcap.csv` | 每个 pcap 的首/末包时间 |
+| `summary.json` | 各维度事件数,以及维度→文件→行数的映射(`outputs` 字段) |
 
 输出示例:
 
 ```
-timeline: /home/robo/robopi-logs/seven-xxx/timeline.csv
-events: 625
-{"bms": 187, "can-details": 214, "dmesg": 2, "hpm-uart": 218, "session": 2, "usb-pcap": 2}
+bms.csv: 187 rows
+can_frames.csv: 31204 rows
+can_details.csv: 214 rows
+dmesg.csv: 2 rows
+hpm_uart.csv: 218 rows
+events: 31829
+{"bms": 187, "can-asc": 31204, "can-details": 214, "dmesg": 2, "hpm-uart": 218, "session": 2, "usb-pcap": 2}
 ```
 
-**最后一行 JSON 是体检报告**:每个维度贡献了多少条事件。任何一维的原始文件有数据、但这里显示 0,说明该维度的解析出了问题。
+**最后的 JSON 是体检报告**:每个维度贡献了多少条事件。任何一维的原始文件有数据、但这里显示 0,说明该维度的解析出了问题。
 
-`timeline.csv` 很大(可达几十万行),**不要用 cat 打开**,用 `head`、`grep`,或拷到电脑上用 Excel 打开。
+所有 CSV 共享同一 Unix 时间轴,需要交叉对照时按 `timestamp` 列合并即可。要旧的合并时间轴,加 `--merged` 生成 `timeline.csv`(可达几十万行,**不要用 cat 打开**,用 `head`、`grep`,或拷到电脑上用 Excel 打开)。
 
 ---
 

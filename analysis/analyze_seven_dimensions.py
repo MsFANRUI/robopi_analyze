@@ -13,10 +13,12 @@ import subprocess
 from pathlib import Path
 
 
-def event(rows, dimension, timestamp, kind, detail):
+def event(rows, dimension, timestamp, kind, detail, **extra):
     if timestamp is not None:
-        rows.append({"timestamp": timestamp, "time_local": dt.datetime.fromtimestamp(timestamp).isoformat(),
-                     "dimension": dimension, "kind": kind, "detail": detail})
+        row = {"timestamp": timestamp, "time_local": dt.datetime.fromtimestamp(timestamp).isoformat(),
+               "dimension": dimension, "kind": kind, "detail": detail}
+        row.update(extra)
+        rows.append(row)
 
 
 def read_manifest(path):
@@ -26,6 +28,22 @@ def read_manifest(path):
 # Only these count toward can-asc: can.log also carries native-bus frames
 # (can_top/can_hipnuc/can_bottom) since capture listens on "any".
 CAN_INTERFACES = ("can0", "can1", "can2", "can3")
+
+# Split-mode outputs: dimension -> (file, columns). "session" events are not
+# listed here on purpose — start/end live in summary.json, and only the
+# optional merged timeline keeps them as rows.
+DIMENSION_OUTPUTS = {
+    "can-asc": ("can_frames.csv", ("timestamp", "time_local", "kind", "interface", "frame")),
+    "bms": ("bms.csv", ("timestamp", "time_local", "kind", "voltage", "current", "soc", "power", "detail")),
+    "dmesg": ("dmesg.csv", ("timestamp", "time_local", "kind", "detail")),
+    "hpm-uart": ("hpm_uart.csv", ("timestamp", "time_local", "kind", "detail")),
+    "thermal": ("thermal.csv", ("timestamp", "time_local", "kind", "detail")),
+    "inference-session": ("inference.csv", ("timestamp", "time_local", "kind", "detail")),
+    "can-details": ("can_details.csv", ("timestamp", "time_local", "kind", "detail")),
+    "usb-pcap": ("usb_pcap.csv", ("timestamp", "time_local", "kind", "file")),
+}
+
+MERGED_FIELDNAMES = ("timestamp", "time_local", "dimension", "kind", "detail")
 
 
 def parse_can(path, rows):
@@ -37,7 +55,8 @@ def parse_can(path, rows):
         timestamp = float(match.group(1))
         first = timestamp if first is None else first
         last = timestamp
-        event(rows, "can-asc", timestamp, "frame", f"{match.group(2)} {match.group(3)}")
+        event(rows, "can-asc", timestamp, "frame", f"{match.group(2)} {match.group(3)}",
+              interface=match.group(2), frame=match.group(3))
     return first, last
 
 
@@ -68,7 +87,9 @@ def parse_bms(path, rows):
                              "soc": int(match.group(4)),
                              "power": match.group(5)},
                             separators=(",", ":"))
-        event(rows, "bms", float(match.group(1)), "sample", detail)
+        event(rows, "bms", float(match.group(1)), "sample", detail,
+              voltage=float(match.group(2)), current=float(match.group(3)),
+              soc=int(match.group(4)), power=match.group(5))
 
 
 def parse_marked_snapshot(path, rows, dimension):
@@ -161,7 +182,7 @@ def parse_usb(path, rows):
                 timestamp = dt.datetime.fromisoformat(value).timestamp()
             except ValueError:
                 continue
-            event(rows, "usb-pcap", timestamp, kind, path.name)
+            event(rows, "usb-pcap", timestamp, kind, path.name, file=path.name)
 
 
 def shutil_which(command):
@@ -182,6 +203,8 @@ def drop_outside_window(rows, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("session", type=Path)
+    parser.add_argument("--merged", action="store_true",
+                        help="also write the legacy merged timeline.csv")
     parser.add_argument("--keep-outside", action="store_true",
                         help="keep events stamped outside the session window")
     args = parser.parse_args()
@@ -208,11 +231,22 @@ def main():
     event(rows, "session", manifest.get("ended_at_unix"), "end", "session")
     dropped = 0 if args.keep_outside else drop_outside_window(rows, manifest)
     rows.sort(key=lambda row: row["timestamp"])
-    timeline = args.session / "timeline.csv"
-    with timeline.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=("timestamp", "time_local", "dimension", "kind", "detail"))
-        writer.writeheader()
-        writer.writerows(rows)
+
+    by_dimension = {}
+    for row in rows:
+        by_dimension.setdefault(row["dimension"], []).append(row)
+
+    outputs = {}
+    for dimension, (filename, fieldnames) in DIMENSION_OUTPUTS.items():
+        dimension_rows = by_dimension.get(dimension)
+        if not dimension_rows:
+            continue
+        with (args.session / filename).open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(dimension_rows)
+        outputs[dimension] = {"file": filename, "rows": len(dimension_rows)}
+
     summary = {
         "session": str(args.session),
         "started_at_unix": manifest.get("started_at_unix"),
@@ -221,10 +255,20 @@ def main():
         "dropped_outside_window": dropped,
         "events_by_dimension": {dimension: sum(row["dimension"] == dimension for row in rows)
                                  for dimension in sorted({row["dimension"] for row in rows})},
-        "timeline": str(timeline),
+        "outputs": outputs,
     }
+    if args.merged:
+        timeline = args.session / "timeline.csv"
+        with timeline.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=MERGED_FIELDNAMES, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        summary["timeline"] = str(timeline)
     (args.session / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(f"timeline: {timeline}")
+    for dimension, info in sorted(outputs.items()):
+        print(f"{info['file']}: {info['rows']} rows")
+    if args.merged:
+        print(f"timeline: {timeline}")
     print(f"events: {len(rows)}")
     print(json.dumps(summary["events_by_dimension"], sort_keys=True))
 

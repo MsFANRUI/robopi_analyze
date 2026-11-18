@@ -9,6 +9,16 @@ interfaces=(can0 can1 can2 can3)
 
 session_root=${SESSION_ROOT:-/home/robo/robopi-logs}
 first_output=${1:-$session_root/seven-$(date +%Y%m%d-%H%M%S)}
+# An explicit path is deliberate and must still fail if it already exists.
+# For the automatic path, stop/start can complete within the same second;
+# wait for the next timestamp instead of treating that normal restart as a
+# fatal "session directory already exists" error.
+if [[ $# -eq 0 ]]; then
+    while [[ -e $first_output ]]; do
+        sleep 1
+        first_output="$session_root/seven-$(date +%Y%m%d-%H%M%S)"
+    done
+fi
 # Subsequent auto-rotated sessions are named the same way, under this
 # directory, regardless of whether the first session's path was explicit.
 rotate_root=$(dirname "$first_output")
@@ -77,7 +87,10 @@ run_session() {
     local output=$1
     local capture_pid= dimension_pids=() rotate_timer_pid=
     local can_pid= failed_child= failure=0 capture_status=0 can_status=0 pid
-    local -A critical_names=() signalled=()
+    local -A critical_names=() optional_names=() signalled=()
+    local health_pid= health_status=null health_degraded=false state_dir=
+    local health_enabled=false env_file=null
+    if [[ ${HOST_HEALTH_ENABLED:-yes} == yes ]]; then health_enabled=true; env_file='"host-environment.json"'; fi
 
     [[ ! -e $output ]] || die "session directory already exists: $output"
 
@@ -101,8 +114,8 @@ run_session() {
     mkdir -p "$output"
     local start_unix
     start_unix=$(now)
-    printf '{\n  "started_at_unix": %s,\n  "boot_id": "%s",\n  "board_serial": "%s",\n  "interfaces": ["can0", "can1", "can2", "can3"],\n  "capture_dir": "%s",\n  "capture_service": "usbcan-capture.service",\n  "hpm_service": "%s",\n  "bms_service": "%s",\n  "inference_screen_session": "%s"\n}\n' \
-        "$start_unix" "$boot_id" "$board_serial" "$capture_dir" "$hpm_service" "$bms_service" "$screen_session" > "$output/manifest.json"
+    printf '{\n  "started_at_unix": %s,\n  "boot_id": "%s",\n  "board_serial": "%s",\n  "host_health_enabled": %s,\n  "host_environment_file": %s,\n  "interfaces": ["can0", "can1", "can2", "can3"],\n  "capture_dir": "%s",\n  "capture_service": "usbcan-capture.service",\n  "hpm_service": "%s",\n  "bms_service": "%s",\n  "inference_screen_session": "%s"\n}\n' \
+        "$start_unix" "$boot_id" "$board_serial" "$health_enabled" "$env_file" "$capture_dir" "$hpm_service" "$bms_service" "$screen_session" > "$output/manifest.json"
 
     # Create the fixed session layout up front; dimensions stay empty when
     # their hardware or tool is unavailable.
@@ -135,7 +148,18 @@ run_session() {
     "$dimension_dir/06_can_asc.sh" "$output" & dimension_pids+=("$!")
     can_pid=$!
     critical_names[$can_pid]=can
-    INFERENCE_SCREEN_SESSION="$screen_session" "$dimension_dir/07_inference_screen.sh" "$output/inference-session.txt" & dimension_pids+=("$!")
+    state_dir=$(mktemp -d) || state_dir=
+    local source_state=
+    [[ -z $state_dir ]] || source_state=$state_dir/inference-source
+    INFERENCE_SCREEN_SESSION="$screen_session" "$dimension_dir/07_inference_screen.sh" "$output/inference-session.txt" "$source_state" & dimension_pids+=("$!")
+    optional_names[$!]=inference-screen
+    if [[ ${HOST_HEALTH_ENABLED:-yes} == yes ]]; then
+        local observer_args=()
+        [[ -z $source_state ]] || observer_args+=(--source-state "$source_state")
+        python3 -B "$dimension_dir/09_host_health.py" "$output" "${observer_args[@]}" & health_pid=$!
+        dimension_pids+=("$health_pid")
+        optional_names[$health_pid]=host-health
+    fi
     "$dimension_dir/08_thermal.sh" "$output/thermal.txt" "$interval" & dimension_pids+=("$!")
     critical_names[$!]=thermal
 
@@ -154,6 +178,10 @@ run_session() {
     # `wait` on a background job is interrupted promptly by a trapped
     # signal, unlike a foreground `sleep`.
     while [[ $stop_requested == no && $rotate_requested == no ]]; do
+        if [[ -n $health_pid && $health_degraded == false ]] && ! kill -0 "$health_pid" 2>/dev/null; then
+            health_degraded=true
+            echo "robopi-seven-capture: optional host-health observer exited; continuing" >&2
+        fi
         for pid in "${!critical_names[@]}"; do
             if ! kill -0 "$pid" 2>/dev/null; then
                 failed_child=${critical_names[$pid]}
@@ -191,7 +219,11 @@ run_session() {
         wait "$pid"; status=$?
         [[ $pid != "$capture_pid" ]] || capture_status=$status
         [[ $pid != "$can_pid" ]] || can_status=$status
-        printf '%s\t%s\t%s\t%s\n' "${critical_names[$pid]:-screen-setup}" "$pid" "$status" "${signalled[$pid]:-no}" >> "$output/recorder-status.tsv"
+        if [[ $pid == "$health_pid" ]]; then
+            health_status=$status
+            [[ $status == 0 && -s $output/host-environment.json ]] || health_degraded=true
+        fi
+        printf '%s\t%s\t%s\t%s\n' "${critical_names[$pid]:-${optional_names[$pid]:-unknown}}" "$pid" "$status" "${signalled[$pid]:-no}" >> "$output/recorder-status.tsv"
         if [[ -n ${critical_names[$pid]:-} ]]; then
             if [[ ${signalled[$pid]:-no} != yes ]] ||
                [[ $status != 0 && $status != 130 && $status != 143 ]]; then
@@ -200,12 +232,15 @@ run_session() {
             fi
         fi
     done
-    screen -S "$screen_session" -X log off 2>/dev/null || true
+    if [[ -n $state_dir ]]; then
+        rm -f -- "$state_dir/inference-source" "$state_dir/inference-source.tmp"
+        rmdir -- "$state_dir" || true
+    fi
     local end_unix
     end_unix=$(now)
     sed -i '$d' "$output/manifest.json"
-    printf ',  "ended_at_unix": %s,\n  "candump_status": %s,\n  "usb_capture_status": %s,\n  "capture_failed": %s,\n  "failed_recorder": "%s",\n  "asc_mode": "offline",\n  "pcap_mode": "direct-session",\n  "session_started_capture": true\n}\n' \
-        "$end_unix" "$can_status" "$capture_status" "$([[ $failure == 0 ]] && echo false || echo true)" "$failed_child" >> "$output/manifest.json"
+    printf ',  "host_health_exit_status": %s,\n  "host_health_degraded": %s,\n  "ended_at_unix": %s,\n  "candump_status": %s,\n  "usb_capture_status": %s,\n  "capture_failed": %s,\n  "failed_recorder": "%s",\n  "asc_mode": "offline",\n  "pcap_mode": "direct-session",\n  "session_started_capture": true\n}\n' \
+        "$health_status" "$health_degraded" "$end_unix" "$can_status" "$capture_status" "$([[ $failure == 0 ]] && echo false || echo true)" "$failed_child" >> "$output/manifest.json"
     echo "Seven-dimensional capture written to $output"
     set -e
 

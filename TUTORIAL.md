@@ -229,8 +229,7 @@ watch -n 3 "ls -l /home/robo/robopi-logs/seven-*/"
 
 ### inference-session.txt 是空的?
 
-要么推理程序没在 `inference_session` 这个 screen 会话里跑,要么它没输出。
-采集会持续 15 分钟反复尝试挂载,推理晚启动也能接上。
+看同一会话 `host-health.jsonl` 中的 `inference_state`：`nodes` 为空表示那次采样未发现节点；`output_source` 表示采集账户看到的 screen 连接状态。`attached` 只是已启用终端记录，不保证应用有输出。观察器在整个会话里重试，支持晚启动和 screen 重建。
 
 ---
 
@@ -242,7 +241,9 @@ watch -n 3 "ls -l /home/robo/robopi-logs/seven-*/"
 |---|---|---|
 | `SESSION_ROOT` | `/home/robo/robopi-logs` | 会话目录(放在大分区) |
 | `SESSION_RETENTION_DAYS` | `7` | 会话保留天数 |
-| `SESSION_RETENTION_COUNT` | `10` | 每个目录保留的会话数 |
+| `SESSION_MAX_TOTAL_MB` / `SESSION_MAX_SIZE_MB` | `6000` / `1024` | 会话总预算 / 活动会话轮转软阈值（MiB） |
+| `HOST_HEALTH_ENABLED` | `yes` | 关闭设为 `no`；不影响 CAN 和 USB 原始采集 |
+| `HOST_HEALTH_SYSRQ_L` | `yes` | 出现断流/错误状态时请求内核打印活动 CPU 栈，每会话最多每 60 秒一次。设为 `no` 后仍会保留断流、恢复和进程表 |
 | `USBCAN_CAN_WAIT_SECS` | `120` | 等待 CAN 接口就绪的最长秒数 |
 | `CAN_INTERFACE` | `can3` | 用于定位 USB 总线的 CAN 接口 |
 | `FILE_SIZE_MB` / `FILE_COUNT` | `64` / `8` | 环形抓包的单文件大小和个数 |

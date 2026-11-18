@@ -30,6 +30,12 @@ SESSION_MAX_SIZE_MB=1024
 # stopped, the pre-rotation behavior).
 SESSION_MAX_DURATION_SECS=1800
 
+# Optional CPU, IRQ, CAN progress and inference-state observer.
+HOST_HEALTH_ENABLED=yes
+# On a stall request only a diagnostic all-CPU backtrace, at most once per
+# 60 s per session. Set no to disable SysRq without disabling stall evidence.
+HOST_HEALTH_SYSRQ_L=yes
+
 # Max seconds to wait for CAN_INTERFACE before giving up on the ring capture.
 USBCAN_CAN_WAIT_SECS=120
 

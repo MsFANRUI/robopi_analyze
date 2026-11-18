@@ -21,9 +21,11 @@ override_dh_auto_install:
 		$(CURDIR)/debian/roboparty-analyze$(INSTALL_PREFIX)/bin/usbcan-capture
 	install -D -m 0755 capture/capture_hpm_uart.sh \
 		$(CURDIR)/debian/roboparty-analyze$(INSTALL_PREFIX)/bin/hpm-log-capture
-	install -m 0755 dimensions/* \
+	install -m 0755 dimensions/[0-9][0-9]_*.sh dimensions/09_host_health.py \
 		$(CURDIR)/debian/roboparty-analyze$(INSTALL_PREFIX)/lib/roboparty-analyze/dimensions/
-	install -m 0755 analysis/*.py \
+	install -m 0755 analysis/analyze_can_asc.py analysis/analyze_seven_dimensions.py \
+		analysis/analyze_usbcan_echo.py analysis/analyze_usbcan_timeline.py analysis/analyze_usbcan_urb.py \
+		analysis/compare_usbcan_captures.py analysis/extract_usbcan_error_windows.py \
 		$(CURDIR)/debian/roboparty-analyze$(INSTALL_PREFIX)/lib/roboparty-analyze/analysis/
 	install -m 0755 ebpf/*.sh ebpf/*.bt ebpf/capture-response-window.py ebpf/cpu0-flight.py ebpf/cpu0_flight_program.py \
 		$(CURDIR)/debian/roboparty-analyze$(INSTALL_PREFIX)/lib/roboparty-analyze/ebpf/

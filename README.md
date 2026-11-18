@@ -39,9 +39,9 @@ sudo robopi-perf-capture analyze OUTPUT_DIRECTORY   # 停机后分析
 - `hpm-sreset.service` 启动时先执行一次 HPM 正常启动复位，之后作为常驻监视器，
   找不到 HPM 时执行复位。
 - `usbcan-capture.service` 安装后默认启用，系统下次启动时自动开始七维采集。
-- `usbcan-debug-snapshot` 用于机器人即将下电或故障发生时保存完整现场。
+- `usbcan-debug-snapshot` 只用于额外的 USB 诊断快照，不能替代完整的 `seven-*` 会话。
 
-安装包后 HPM 服务自动启动。需要采集故障现场时执行：
+以下是维护命令，不是每次复现的步骤。仅在服务已被手动停止、又想在本次开机恢复采集时执行：
 
 ```bash
 sudo systemctl start usbcan-capture.service
@@ -68,10 +68,10 @@ sudo systemctl stop usbcan-capture.service
 3. 内核日志：记录动态 `dmesg`，用于定位驱动和 USB 事件。
 4. HPM 串口：记录 `/dev/ttyS4` 的 HPM 固件日志，默认 1500000 8N1，与当前 EtherCANFD 固件控制台一致。
 5. USB-CAN：记录 `usbmon` 原始 USB URB PCAP。
-6. CAN ASC：采集 `can0` 到 `can3` 并转换为 Vector ASC 格式。
+6. CAN 报文：现场保存原始 `can.log`，需要 Vector ASC 时再离线转换。
 7. 推理输出：记录 `inference_session` screen 会话文本。
 
-没有对应设备、工具或 screen 会话时，对应文件保持为空，其他维度继续运行。
+没有 BMS 数据或可见的 screen 会话时，对应日志可能没有业务内容；这不等于 CAN、USB 或主机日志没采。关键抓包进程是否失败，看会话收尾后的 `manifest.json`。
 
 HPM 日志配置位于 `/etc/default/hpm-log-capture`，服务读取 `HPM_LOG_BAUD`；
 脚本未设置该变量时也使用 1500000。旧固件可显式覆盖，须以实际烧录版本为准。
@@ -80,7 +80,7 @@ HPM 日志配置位于 `/etc/default/hpm-log-capture`，服务读取 `HPM_LOG_BA
 
 ## 七维采集
 
-命令入口：
+以下是手工调试入口；日常用开机自启的服务即可，不要在其运行时另起一套采集。手工入口：
 
 ```bash
 sudo robopi-seven-capture /home/robo/robopi-logs/seven-$(date +%Y%m%d-%H%M%S)
@@ -111,6 +111,10 @@ usbcan.pcap*
 can.log
 inference-session.txt
 usb-capture.txt
+thermal.txt
+host-environment.json
+host-health.jsonl
+stall/                  # 仅在观察到触发事件时出现
 ```
 
 ## USB-CAN 配置
@@ -164,7 +168,7 @@ sudo journalctl -fu hpm-log-capture.service
 
 ## 紧急快照
 
-故障出现或机器人即将下电时执行：
+仅当需要**额外的 USB 抓包与即时状态**时使用。此命令会暂停采集，ZIP 不包含完整主机历史或 `stall/` 故障窗口。日常复现不要执行；直接下载 `/home/robo/robopi-logs/` 中的原会话：
 
 ```bash
 sudo usbcan-debug-snapshot
@@ -196,30 +200,28 @@ unzip -l YYYYMMDD-HHMMSS.zip | head
 
 ## 分析与导出
 
-分析七维快照，每个维度生成一个 CSV 文件（`can_frames.csv`、`bms.csv`、`dmesg.csv`、
-`hpm_uart.csv`、`thermal.csv`、`inference.csv`、`can_details.csv`、`usb_pcap.csv`，
-没有数据的维度不生成文件），外加 `summary.json` 汇总各文件与行数：
+先下载已结束的整个 `seven-*` 会话。在 Windows 电脑上的用法见[使用教程](TUTORIAL.md)；在装有本工具的 Linux 电脑上，下面以已经下载的会话为例，报告另存，不修改原件：
 
 ```bash
-robopi-seven-analyze /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS
+robopi-seven-analyze ./seven-YYYYMMDD-HHMMSS --out ./report
 ```
 
 需要旧的合并时间轴时加 `--merged`，额外生成 `timeline.csv`：
 
 ```bash
-robopi-seven-analyze --merged /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS
+robopi-seven-analyze --merged ./seven-YYYYMMDD-HHMMSS --out ./report
 ```
 
-导出 ZIP 和 SHA-256：
+可选：需要 ZIP 和 SHA-256 时，以下命令会先将分析结果写入输入目录，再打包。请对会话的工作副本执行，不要对正在写入的会话或唯一原件执行：
 
 ```bash
-robopi-seven-export /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS
+robopi-seven-export ./seven-YYYYMMDD-HHMMSS
 ```
 
 只分析 USB-CAN PCAP：
 
 ```bash
-analyze-ethercan-pcap /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS --top 50
+analyze-ethercan-pcap ./seven-YYYYMMDD-HHMMSS --top 50
 ```
 
 第一次分析建议不要指定 Bus、Device 或 Endpoint，先根据报告确认设备位置，再按需
@@ -238,6 +240,7 @@ analyze-ethercan-pcap /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS --top 50
 | `dimensions/05_usb_pcap.sh` | USB-CAN 原始抓包 | `usbcan.pcap*` |
 | `dimensions/06_can_asc.sh` | CAN 原始记录；显式离线转换 ASC | `can.log`，按需生成 `can.asc` |
 | `dimensions/07_inference_screen.sh` | inference screen 输出 | `inference-session.txt` |
+| `dimensions/09_host_health.py` | 主机观测（可选） | `host-health.jsonl`、`host-environment.json`、`stall/` |
 
 ### 采集和分析
 
@@ -246,7 +249,7 @@ analyze-ethercan-pcap /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS --top 50
 | `capture/capture_seven_dimensions.sh` | 七维同步采集编排 |
 | `capture/capture_usbcan_ring.sh` | USB-CAN 循环抓包实现 |
 | `capture/capture_hpm_uart.sh` | HPM 原始串口读取实现 |
-| `bin/save_usbcan_snapshot.sh` | 保存七维故障快照、ZIP 和 SHA-256 |
+| `bin/save_usbcan_snapshot.sh` | 保存额外的 USB 抓包和即时状态、ZIP 和 SHA-256；不替代原会话 |
 | `bin/export_seven_dimensions.sh` | 分析、打包七维会话 |
 | `bin/restart_can_interfaces.sh` | 重启四路 CAN，不修改 CAN 配置 |
 | `bin/guard_sessions.py` | 每 20 秒清理旧会话，活动会话超过容量限制时请求轮转 |
@@ -276,6 +279,18 @@ analyze-ethercan-pcap /home/robo/usbcan-snapshots/YYYYMMDD-HHMMSS --top 50
 
 `bin/flash_hpm.sh` 在烧录前停止 `hpm-sreset.service`，烧录完成后重新启动它，
 避免 HPM 进入 USB BootROM 时被监视器复位；可用 `HPM_RESET_SERVICE` 覆盖服务名。
+
+### 通信停顿与主机负载
+
+每个会话新增 `host-health.jsonl` 和 `host-environment.json`。前者约每 50 ms 记录目标硬中断、软中断和 CAN 接口收发计数，每秒记录整机和各核 CPU 占用、1/5/15 分钟负载、PSI、运控与采集进程占用。进程占用以单核为 100%；首样本为 null，不是空闲。实际采样间隔也入日志。运控 PID/连接状态只在变化时写，原始输出仍只进 `inference-session.txt`。screen 观察其运行账户可见的精确会话名，晚启动或重建会重连；不可见不代表业务退出。
+
+can0～can3 和 can_hipnuc 每个接口的 RX/TX 独立判断；同方向连续三个采样区间有进展后，采样时发现距上次计数增长已满 95 ms，才会触发 `can0_rx_silent` 等事件（按 50 ms 采样，通常约 100 ms 时记下）。冷启动空闲不告警。事件是 Linux 接口计数证据，不指认应用、单台电机或电气故障。采集器晚醒记为 `sampler_gap`；接口消失或计数回退也不冒充恢复。进入 ERROR-PASSIVE/BUS-OFF 可独立触发。
+
+`stall/<编号>.json` 保存含触发点的最近 10 条快样本，并跟随停顿方向直到恢复后再采 3 条，最多约 5 秒（超时不代表恢复）。无方向的 CAN 状态事件采约 5 秒。后续首次进展或观测中断也在 `host-health.jsonl` 记 `direction_end`，可按 `file` 找回原事件。`*.processes.json` 留下最近最多 4 张约一秒一次的全进程表，包含可读 PID、启动标识、调度策略、实时优先级和窗口 CPU 占用；首样本无占用基线。软中断快样本含全部内核类别和逐核总计（次数，不是耗时）。
+
+`*.threads.json` 是触发后的筛选线程快照（每会话最多每 10 秒一次）。默认对故障额外请求诊断 SysRq **小写 l**，每会话最多每 60 秒一次；在 `sysrq_l` 查看请求时间与结果，再对照 `dmesg-live.txt`，写入成功并不保证每核都有栈。`HOST_HEALTH_SYSRQ_L=no` 只关闭打印内核栈，不抑制其他证据。不同方向和链路状态的事件不受这两项冷却限制。所有输出仍服从原会话时长、大小和保留策略。`HOST_HEALTH_ENABLED=no` 可关闭整个观察器。
+
+离线运行 `robopi-seven-analyze SESSION --out REPORT_DIR` 可保留原件。检查 `bms.csv` 的带符号总电流/功率、`can_gaps.csv` 的相邻帧空窗（默认 ≥100 ms）、`cpu_load.csv`（各核占用）、`can_gap_cpu.csv`（空窗与占用区间的交集）、`host_health.csv` 及 `summary.json` 中各口覆盖、PCAP 记录完整性与预计收尾状态。USB 四口组表示组内任意一口的最后/下一帧，并不证明四口之前都有业务；结合各口覆盖判断。一秒平均 CPU 占用不能独立证明亚秒停顿的根因。
 
 源码目录职责：
 

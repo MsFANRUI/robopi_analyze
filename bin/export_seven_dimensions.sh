@@ -27,7 +27,9 @@ cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
 cp -a "$session" "$stage/$name"
 rm -f "$stage/$name"/*.zip "$stage/$name"/*.zip.sha256 "$stage/$name/files.sha256"
-(cd "$stage" && find "$name" -type f -print0 | sort -z | xargs -0 sha256sum) > "$stage/$name/files.sha256"
+# Hash paths relative to the session, without hashing the checksum file itself.
+(cd "$stage/$name" && find . -type f -printf '%P\0' | sort -z | xargs -0 -r sha256sum --) > "$stage/checksums.tmp"
+mv -- "$stage/checksums.tmp" "$stage/$name/files.sha256"
 mkdir -p "$(dirname "$archive")"
 rm -f "$archive" "$archive.sha256"
 (cd "$stage" && zip -qr -X "$archive" "$name")

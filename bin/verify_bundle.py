@@ -19,8 +19,11 @@ import sys
 import zipfile
 
 
-def _hash(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def _hash(stream) -> str:
+    digest = hashlib.sha256()
+    for block in iter(lambda: stream.read(1024 * 1024), b''):
+        digest.update(block)
+    return digest.hexdigest()
 
 
 def _parse_sums(text: str) -> dict[str, str]:
@@ -43,7 +46,7 @@ def _manifest_warnings(manifest: dict) -> list[str]:
         warnings.append("manifest has no start time")
     if not any(key in manifest for key in ("ended_at", "ended_at_unix")):
         warnings.append("manifest has no end time")
-    if not any(key in manifest for key in ("serial", "device_id", "hostname")):
+    if not any(key in manifest for key in ("serial", "board_serial", "device_id", "hostname")):
         warnings.append("manifest has no device identity")
     return warnings
 
@@ -57,14 +60,16 @@ def verify_directory(root: Path) -> dict:
         result["missing"].append("files.sha256")
         return result
     expected = _parse_sums(sums_path.read_text(encoding="utf-8"))
-    actual = {str(path.relative_to(root)): path for path in root.rglob("*") if path.is_file()}
+    actual = {path.relative_to(root).as_posix(): path for path in root.rglob("*") if path.is_file()}
     result["extras"] = sorted(set(actual) - set(expected) - {"files.sha256"})
     for name, digest in expected.items():
         path = root / name
         if not path.is_file():
             result["missing"].append(name)
-        elif _hash(path.read_bytes()) != digest:
-            result["mismatch"].append(name)
+        else:
+            with path.open("rb") as stream:
+                if _hash(stream) != digest:
+                    result["mismatch"].append(name)
     if manifest_path.is_file():
         try:
             result["warnings"] = _manifest_warnings(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -91,8 +96,10 @@ def verify_zip(path: Path) -> dict:
             member = base + name
             if member not in names:
                 result["missing"].append(name)
-            elif _hash(archive.read(member)) != digest:
-                result["mismatch"].append(name)
+            else:
+                with archive.open(member) as stream:
+                    if _hash(stream) != digest:
+                        result["mismatch"].append(name)
         manifest_name = next((name for name in names if name.endswith("manifest.json")), None)
         if manifest_name:
             try:

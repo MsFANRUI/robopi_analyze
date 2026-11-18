@@ -35,3 +35,23 @@ debian/*.substvars
 
 # Local test scripts and artifacts.
 /tests/
+
+# Workspace tools, local test/build output and unpacked capture sessions.
+/.codex/
+/.serena/
+.pytest_cache/
+.venv/
+/dist/
+/seven-20*/
+/debian/tmp/
+*.o
+*.pcap
+*.pcap[0-9]*
+*.pcapng
+
+# Historical, machine-local investigations (not shipped analyzers).
+/analysis/count_seven_20261017_directions.py
+/analysis/seven_20261017_directions.json
+/analysis/hpm_usb_recovery/
+/analysis/pcap_deep_20260929/
+/analysis/robopi_20260929_root_cause/
